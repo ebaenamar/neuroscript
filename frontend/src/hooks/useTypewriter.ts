@@ -1,93 +1,139 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Typewriter hook: takes full received text and drip-feeds it word by word.
- * @param sourceText - The full text received so far (from WebSocket streaming)
- * @param delayMs - Milliseconds between each word (0 = instant)
- * @param isActive - Whether typewriter is actively receiving (isGenerating)
+ * Queue-based typewriter hook.
+ *
+ * Takes an array of completed paragraphs from the WebSocket and reveals them
+ * word-by-word at the chosen speed. When speed is 0 all text appears instantly.
+ *
+ * Uses STATE (not refs) for revealedCount so paragraph transitions trigger
+ * re-renders and the next paragraph is picked up automatically.
  */
 export function useTypewriter(
-  sourceText: string,
-  delayMs: number,
-  isActive: boolean
+  completedParagraphs: string[],
+  delayMs: number
 ) {
-  const [displayedWordCount, setDisplayedWordCount] = useState(0);
+  const [revealedParagraphs, setRevealedParagraphs] = useState<string[]>([]);
+  const [revealedCount, setRevealedCount] = useState(0);
+  const [typingText, setTypingText] = useState("");
+  const [wordIndex, setWordIndex] = useState(0);
+  const [isTyping, setIsTyping] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sourceWords = sourceText ? sourceText.split(/(\s+)/) : [];
-  const totalTokens = sourceWords.length;
+  const wordsRef = useRef<string[]>([]);
 
-  // When speed is 0 (instant), show everything immediately
-  useEffect(() => {
-    if (delayMs === 0) {
-      setDisplayedWordCount(totalTokens);
-      return;
-    }
-  }, [delayMs, totalTokens]);
-
-  // Advance the word counter one step at a time
-  useEffect(() => {
-    if (delayMs === 0) return;
-
-    // If we're already caught up, nothing to do
-    if (displayedWordCount >= totalTokens) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      return;
-    }
-
-    // Start interval if not running
-    if (!timerRef.current) {
-      timerRef.current = setInterval(() => {
-        setDisplayedWordCount((prev) => {
-          const next = prev + 1;
-          return next;
-        });
-      }, delayMs);
-    }
-
-    return () => {
-      // Don't clear on every render, only on unmount or delay change
-    };
-  }, [delayMs, totalTokens, displayedWordCount]);
-
-  // Reset interval when delay changes
-  useEffect(() => {
+  const clearTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (delayMs > 0 && displayedWordCount < totalTokens) {
-      timerRef.current = setInterval(() => {
-        setDisplayedWordCount((prev) => prev + 1);
-      }, delayMs);
+  }, []);
+
+  // Reset when completedParagraphs is cleared (new session)
+  useEffect(() => {
+    if (completedParagraphs.length === 0) {
+      clearTimer();
+      setRevealedParagraphs([]);
+      setRevealedCount(0);
+      setTypingText("");
+      setWordIndex(0);
+      setIsTyping(false);
+      wordsRef.current = [];
     }
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
+  }, [completedParagraphs.length, clearTimer]);
+
+  // Pick next paragraph to type when available
+  // Deps: revealedCount (state), completedParagraphs, delayMs — all trigger re-renders
+  useEffect(() => {
+    // Nothing new to reveal
+    if (revealedCount >= completedParagraphs.length) return;
+    // Already typing
+    if (isTyping) return;
+
+    if (delayMs === 0) {
+      // Instant mode: reveal all pending paragraphs at once
+      const pending = completedParagraphs.slice(revealedCount);
+      setRevealedParagraphs((prev) => [...prev, ...pending]);
+      setRevealedCount(completedParagraphs.length);
+      setTypingText("");
+      return;
+    }
+
+    // Start typing the next paragraph word by word
+    const paragraph = completedParagraphs[revealedCount];
+    const words = paragraph.split(/(\s+)/);
+    wordsRef.current = words;
+    setWordIndex(1); // Start at 1 so first word shows immediately
+    setTypingText(words.slice(0, 1).join(""));
+    setIsTyping(true);
+
+    clearTimer();
+    timerRef.current = setInterval(() => {
+      setWordIndex((prev) => prev + 1);
+    }, delayMs);
+
+  }, [revealedCount, completedParagraphs, delayMs, isTyping, clearTimer]);
+
+  // Advance displayed text as wordIndex increments
+  useEffect(() => {
+    if (!isTyping) return;
+    const words = wordsRef.current;
+
+    if (wordIndex >= words.length) {
+      // Paragraph fully revealed → move to revealed list
+      clearTimer();
+      const finishedText = words.join("");
+      setRevealedParagraphs((prev) => [...prev, finishedText]);
+      setRevealedCount((prev) => prev + 1);
+      setTypingText("");
+      setWordIndex(0);
+      setIsTyping(false);
+    } else if (wordIndex > 0) {
+      setTypingText(words.slice(0, wordIndex).join(""));
+    }
+  }, [wordIndex, isTyping, clearTimer]);
+
+  // When delay changes mid-typing, restart interval at new speed
+  useEffect(() => {
+    if (!isTyping) return;
+
+    if (delayMs === 0) {
+      // Switched to instant: finish current + all pending immediately
+      clearTimer();
+      const remaining = completedParagraphs.slice(revealedCount);
+      setRevealedParagraphs((prev) => [...prev, ...remaining]);
+      setRevealedCount(completedParagraphs.length);
+      setTypingText("");
+      setWordIndex(0);
+      setIsTyping(false);
+      return;
+    }
+
+    // Restart interval at new speed
+    clearTimer();
+    timerRef.current = setInterval(() => {
+      setWordIndex((prev) => prev + 1);
+    }, delayMs);
+    return () => clearTimer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [delayMs]);
 
-  // Reset when source text is cleared (new generation starts)
+  // Cleanup on unmount
   useEffect(() => {
-    if (sourceText === "") {
-      setDisplayedWordCount(0);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-  }, [sourceText]);
+    return () => clearTimer();
+  }, [clearTimer]);
 
-  // Build the displayed string from the word tokens shown so far
-  const displayedText = sourceWords.slice(0, displayedWordCount).join("");
-  const isTyping = delayMs > 0 && displayedWordCount < totalTokens;
-  const pendingWords = totalTokens - displayedWordCount;
+  const pendingParagraphs = completedParagraphs.length - revealedCount - (isTyping ? 1 : 0);
+  const pendingWords = isTyping ? Math.max(0, wordsRef.current.length - wordIndex) : 0;
+  const allText = [...revealedParagraphs, typingText].filter(Boolean).join("\n\n");
 
-  return { displayedText, isTyping, pendingWords };
+  return {
+    revealedParagraphs,
+    typingText,
+    isTyping,
+    pendingParagraphs: Math.max(0, pendingParagraphs),
+    pendingWords,
+    allText,
+  };
 }

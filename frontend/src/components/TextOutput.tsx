@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -20,9 +20,8 @@ import {
 import { useTypewriter } from "@/hooks/useTypewriter";
 
 interface Props {
-  paragraphs: string[];
-  streamingText: string;
-  isGenerating: boolean;
+  completedParagraphs: string[];
+  isReceiving: boolean;
   isPaused: boolean;
   // TTS
   isSpeaking: boolean;
@@ -39,9 +38,8 @@ interface Props {
 }
 
 export default function TextOutput({
-  paragraphs,
-  streamingText,
-  isGenerating,
+  completedParagraphs,
+  isReceiving,
   isPaused,
   isSpeaking,
   ttsPaused,
@@ -56,19 +54,22 @@ export default function TextOutput({
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
-  const [wordDelayMs, setWordDelayMs] = useState(0); // 0 = instant
+  const [wordDelayMs, setWordDelayMs] = useState(150); // ms per word
 
-  const { displayedText, isTyping, pendingWords } = useTypewriter(
-    streamingText,
-    wordDelayMs,
-    isGenerating
-  );
+  const {
+    revealedParagraphs,
+    typingText,
+    isTyping,
+    pendingParagraphs,
+    pendingWords,
+    allText,
+  } = useTypewriter(completedParagraphs, wordDelayMs);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [paragraphs, displayedText]);
+  }, [revealedParagraphs, typingText]);
 
-  const allText = [...paragraphs, streamingText].filter(Boolean).join("\n\n");
+  const hasText = revealedParagraphs.length > 0 || typingText.length > 0;
 
   const speedLabel =
     wordDelayMs === 0
@@ -81,6 +82,22 @@ export default function TextOutput({
       ? "Pensive"
       : "Meditative";
 
+  const statusText = () => {
+    if (isTyping && pendingParagraphs > 0) {
+      return `Typing... (${pendingWords} words + ${pendingParagraphs} paragraphs queued)`;
+    }
+    if (isTyping) {
+      return `Typing... (${pendingWords} words remaining)`;
+    }
+    if (isReceiving) {
+      return "Receiving from LLM...";
+    }
+    if (pendingParagraphs > 0) {
+      return `${pendingParagraphs} paragraphs queued`;
+    }
+    return null;
+  };
+
   return (
     <Card className="bg-zinc-900/60 border-zinc-700/50 backdrop-blur-md flex flex-col h-full">
       {/* Header */}
@@ -89,14 +106,14 @@ export default function TextOutput({
           Generated Text
         </h2>
         <div className="flex items-center gap-2">
-          {(isGenerating || isTyping) && (
+          {statusText() && (
             <span className="flex items-center gap-1.5 text-xs text-cyan-400">
               {isTyping ? (
                 <PenLine className="h-3 w-3" />
               ) : (
                 <Loader2 className="h-3 w-3 animate-spin" />
               )}
-              {isTyping ? `Typing... (${pendingWords} words queued)` : "Receiving..."}
+              {statusText()}
             </span>
           )}
         </div>
@@ -105,22 +122,26 @@ export default function TextOutput({
       {/* Text area */}
       <ScrollArea className="flex-1 px-4 pb-2">
         <div className="prose prose-invert prose-sm max-w-none py-2 font-serif leading-relaxed">
-          {paragraphs.length === 0 && !streamingText && (
+          {!hasText && !isReceiving && (
             <p className="text-zinc-600 italic">
               Configure a theme and press Start to begin generating...
             </p>
           )}
-          {paragraphs.map((p, i) => (
+          {!hasText && isReceiving && (
+            <p className="text-zinc-600 italic flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Composing the opening...
+            </p>
+          )}
+          {revealedParagraphs.map((p, i) => (
             <p key={i} className="text-zinc-200 mb-4">
               {p}
             </p>
           ))}
-          {displayedText && (
+          {typingText && (
             <p className="text-zinc-100 mb-4">
-              {displayedText}
-              {(isGenerating || isTyping) && (
-                <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
-              )}
+              {typingText}
+              <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
             </p>
           )}
           <div ref={bottomRef} />
@@ -240,7 +261,7 @@ export default function TextOutput({
             </>
           )}
 
-          {paragraphs.length > 0 && (
+          {hasText && (
             <>
               <Button
                 size="sm"

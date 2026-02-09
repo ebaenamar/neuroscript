@@ -136,7 +136,8 @@ async def websocket_endpoint(ws: WebSocket):
                     await ws.send_json({"type": "text_chunk", "chunk": chunk})
 
                 await ws.send_json({"type": "text_end", "full_text": full_text})
-                engine.update_context(full_text)
+                if not is_editor:
+                    engine.update_context(full_text)
 
                 # Record in session
                 if session_active:

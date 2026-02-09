@@ -62,9 +62,8 @@ export default function Home() {
         {/* Center: Text output */}
         <div className="overflow-hidden">
           <TextOutput
-            paragraphs={neuro.paragraphs}
-            streamingText={neuro.streamingText}
-            isGenerating={neuro.isGenerating}
+            completedParagraphs={neuro.completedParagraphs}
+            isReceiving={neuro.isReceiving}
             isPaused={neuro.isPaused}
             isSpeaking={tts.isSpeaking}
             ttsPaused={tts.isPaused}

@@ -18,9 +18,8 @@ export interface NeuroSocketState {
   eegState: NeuroState;
   stateHistory: StateHistoryPoint[];
   transformations: Transformation[];
-  streamingText: string;
-  paragraphs: string[];
-  isGenerating: boolean;
+  completedParagraphs: string[];
+  isReceiving: boolean;
   isPaused: boolean;
   sessionId: string | null;
   error: string | null;
@@ -37,9 +36,8 @@ export function useNeuroSocket() {
     eegState: { calm: 0.5, activation: 0.5, fatigue: 0.2, quality: 0 },
     stateHistory: [],
     transformations: [],
-    streamingText: "",
-    paragraphs: [],
-    isGenerating: false,
+    completedParagraphs: [],
+    isReceiving: false,
     isPaused: true,
     sessionId: null,
     error: null,
@@ -97,22 +95,17 @@ export function useNeuroSocket() {
           break;
 
         case "text_start":
-          setState((s) => ({ ...s, streamingText: "", isGenerating: true }));
+          setState((s) => ({ ...s, isReceiving: true }));
           break;
 
         case "text_chunk":
-          setState((s) => ({
-            ...s,
-            streamingText: s.streamingText + msg.chunk,
-          }));
           break;
 
         case "text_end":
           setState((s) => ({
             ...s,
-            paragraphs: [...s.paragraphs, msg.full_text],
-            streamingText: "",
-            isGenerating: false,
+            completedParagraphs: [...s.completedParagraphs, msg.full_text],
+            isReceiving: false,
           }));
           break;
 
@@ -121,8 +114,7 @@ export function useNeuroSocket() {
             ...s,
             sessionId: msg.sessionId,
             isPaused: false,
-            paragraphs: [],
-            streamingText: "",
+            completedParagraphs: [],
           }));
           break;
 
@@ -138,7 +130,7 @@ export function useNeuroSocket() {
           setState((s) => ({
             ...s,
             isPaused: true,
-            isGenerating: false,
+            isReceiving: false,
             sessionId: null,
           }));
           break;
