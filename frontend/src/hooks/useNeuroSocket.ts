@@ -172,6 +172,12 @@ export function useNeuroSocket() {
   );
 
   const start = useCallback(() => send({ type: "start" }), [send]);
+  const startWithConfig = useCallback(
+    (config: SessionConfig) => {
+      send({ type: "start", ...config });
+    },
+    [send]
+  );
   const pause = useCallback(() => send({ type: "pause" }), [send]);
   const resume = useCallback(() => send({ type: "resume" }), [send]);
   const stop = useCallback(() => send({ type: "stop" }), [send]);
@@ -189,6 +195,7 @@ export function useNeuroSocket() {
     ...state,
     configure,
     start,
+    startWithConfig,
     pause,
     resume,
     stop,

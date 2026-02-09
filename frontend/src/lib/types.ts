@@ -20,14 +20,12 @@ export interface StateHistoryPoint {
 }
 
 export type SessionMode = "generator" | "editor";
-export type EngineMode = "conservative" | "balanced" | "experimental";
 
 export interface SessionConfig {
   theme: string;
   mode: SessionMode;
   baseText: string;
   sensitivity: number;
-  engineMode: EngineMode;
 }
 
 // WebSocket message types
@@ -49,7 +47,7 @@ export type WSIncoming =
 
 export type WSOutgoing =
   | { type: "configure" } & Partial<SessionConfig>
-  | { type: "start" }
+  | { type: "start" } & Partial<SessionConfig>
   | { type: "pause" }
   | { type: "resume" }
   | { type: "stop" }

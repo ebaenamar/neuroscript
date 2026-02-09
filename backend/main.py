@@ -124,16 +124,23 @@ async def websocket_endpoint(ws: WebSocket):
                     ],
                 })
 
-                # Stream text generation
+                # Stream text generation — finish at sentence boundary on pause/stop
                 full_text = ""
+                finish_at_sentence = False
                 await ws.send_json({"type": "text_start"})
                 async for chunk in llm_client.generate_stream(
                     system_prompt, user_prompt, max_tokens=500
                 ):
-                    if stop_event.is_set() or paused:
+                    if stop_event.is_set():
                         break
                     full_text += chunk
                     await ws.send_json({"type": "text_chunk", "chunk": chunk})
+                    if paused:
+                        finish_at_sentence = True
+                    if finish_at_sentence:
+                        stripped = full_text.rstrip()
+                        if stripped and stripped[-1] in '.!?;':
+                            break
 
                 await ws.send_json({"type": "text_end", "full_text": full_text})
                 if not is_editor:
@@ -167,18 +174,25 @@ async def websocket_endpoint(ws: WebSocket):
                 mode = msg.get("mode", mode)
                 base_text = msg.get("baseText", base_text)
                 engine.sensitivity = msg.get("sensitivity", engine.sensitivity)
-                engine_mode = msg.get("engineMode", engine.mode)
-                engine.mode = engine_mode
                 logger.info(f"Configured: theme='{theme}', mode={mode}, sensitivity={engine.sensitivity}")
                 await ws.send_json({"type": "configured", "theme": theme, "mode": mode})
 
             elif msg_type == "start":
+                # Accept inline config so frontend can send config+start in one step
+                if "theme" in msg:
+                    theme = msg["theme"]
+                if "mode" in msg:
+                    mode = msg["mode"]
+                if "baseText" in msg:
+                    base_text = msg["baseText"]
+                if "sensitivity" in msg:
+                    engine.sensitivity = msg["sensitivity"]
                 paused = False
                 session_active = True
                 session_id = session_mgr.start_session(theme, mode)
                 engine.reset_context()
                 await ws.send_json({"type": "started", "sessionId": session_id})
-                logger.info(f"Generation started: session={session_id}")
+                logger.info(f"Generation started: session={session_id}, theme='{theme}', mode={mode}")
 
             elif msg_type == "pause":
                 paused = True

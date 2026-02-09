@@ -54,6 +54,7 @@ export default function Home() {
         <div className="space-y-4 overflow-y-auto pr-1">
           <ConfigPanel
             onConfigure={neuro.configure}
+            onStartSession={neuro.startWithConfig}
             connected={neuro.connected}
             sessionActive={neuro.sessionId !== null}
           />
@@ -70,7 +71,6 @@ export default function Home() {
             onSpeak={tts.speak}
             onStopSpeak={tts.stop}
             onPauseResumeSpeak={tts.pauseResume}
-            onStart={neuro.start}
             onPause={neuro.pause}
             onResume={neuro.resume}
             onStop={neuro.stop}

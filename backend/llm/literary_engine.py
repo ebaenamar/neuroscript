@@ -24,9 +24,8 @@ class LiteraryTransformation:
 class LiteraryEngine:
     """Translates neurophysiological state into literary style prompts for the LLM."""
 
-    def __init__(self, sensitivity: float = 1.0, mode: str = "balanced"):
+    def __init__(self, sensitivity: float = 1.0):
         self.sensitivity = sensitivity  # 0.1 (conservative) → 2.0 (experimental)
-        self.mode = mode  # "conservative", "balanced", "experimental"
         self._story_history: List[str] = []
         self._paragraph_count: int = 0
 

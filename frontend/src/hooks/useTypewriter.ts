@@ -13,7 +13,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export function useTypewriter(
   completedParagraphs: string[],
-  delayMs: number
+  delayMs: number,
+  isPaused: boolean
 ) {
   const [revealedParagraphs, setRevealedParagraphs] = useState<string[]>([]);
   const [revealedCount, setRevealedCount] = useState(0);
@@ -30,6 +31,28 @@ export function useTypewriter(
     }
   }, []);
 
+  const startTimer = useCallback((delay: number) => {
+    clearTimer();
+    if (delay > 0) {
+      timerRef.current = setInterval(() => {
+        setWordIndex((prev) => prev + 1);
+      }, delay);
+    }
+  }, [clearTimer]);
+
+  // Flush: instantly reveal all remaining text (used on Stop)
+  const flush = useCallback(() => {
+    clearTimer();
+    const remaining = completedParagraphs.slice(revealedCount);
+    if (remaining.length > 0) {
+      setRevealedParagraphs((prev) => [...prev, ...remaining]);
+      setRevealedCount(completedParagraphs.length);
+    }
+    setTypingText("");
+    setWordIndex(0);
+    setIsTyping(false);
+  }, [clearTimer, completedParagraphs, revealedCount]);
+
   // Reset when completedParagraphs is cleared (new session)
   useEffect(() => {
     if (completedParagraphs.length === 0) {
@@ -43,16 +66,23 @@ export function useTypewriter(
     }
   }, [completedParagraphs.length, clearTimer]);
 
-  // Pick next paragraph to type when available
-  // Deps: revealedCount (state), completedParagraphs, delayMs — all trigger re-renders
+  // Pause/resume the interval
   useEffect(() => {
-    // Nothing new to reveal
+    if (isPaused) {
+      clearTimer();
+    } else if (isTyping && delayMs > 0) {
+      startTimer(delayMs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused]);
+
+  // Pick next paragraph to type when available
+  useEffect(() => {
     if (revealedCount >= completedParagraphs.length) return;
-    // Already typing
     if (isTyping) return;
+    if (isPaused) return;
 
     if (delayMs === 0) {
-      // Instant mode: reveal all pending paragraphs at once
       const pending = completedParagraphs.slice(revealedCount);
       setRevealedParagraphs((prev) => [...prev, ...pending]);
       setRevealedCount(completedParagraphs.length);
@@ -60,20 +90,15 @@ export function useTypewriter(
       return;
     }
 
-    // Start typing the next paragraph word by word
     const paragraph = completedParagraphs[revealedCount];
     const words = paragraph.split(/(\s+)/);
     wordsRef.current = words;
-    setWordIndex(1); // Start at 1 so first word shows immediately
+    setWordIndex(1);
     setTypingText(words.slice(0, 1).join(""));
     setIsTyping(true);
+    startTimer(delayMs);
 
-    clearTimer();
-    timerRef.current = setInterval(() => {
-      setWordIndex((prev) => prev + 1);
-    }, delayMs);
-
-  }, [revealedCount, completedParagraphs, delayMs, isTyping, clearTimer]);
+  }, [revealedCount, completedParagraphs, delayMs, isTyping, isPaused, startTimer]);
 
   // Advance displayed text as wordIndex increments
   useEffect(() => {
@@ -81,7 +106,6 @@ export function useTypewriter(
     const words = wordsRef.current;
 
     if (wordIndex >= words.length) {
-      // Paragraph fully revealed → move to revealed list
       clearTimer();
       const finishedText = words.join("");
       setRevealedParagraphs((prev) => [...prev, finishedText]);
@@ -96,10 +120,9 @@ export function useTypewriter(
 
   // When delay changes mid-typing, restart interval at new speed
   useEffect(() => {
-    if (!isTyping) return;
+    if (!isTyping || isPaused) return;
 
     if (delayMs === 0) {
-      // Switched to instant: finish current + all pending immediately
       clearTimer();
       const remaining = completedParagraphs.slice(revealedCount);
       setRevealedParagraphs((prev) => [...prev, ...remaining]);
@@ -110,11 +133,7 @@ export function useTypewriter(
       return;
     }
 
-    // Restart interval at new speed
-    clearTimer();
-    timerRef.current = setInterval(() => {
-      setWordIndex((prev) => prev + 1);
-    }, delayMs);
+    startTimer(delayMs);
     return () => clearTimer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [delayMs]);
@@ -135,5 +154,6 @@ export function useTypewriter(
     pendingParagraphs: Math.max(0, pendingParagraphs),
     pendingWords,
     allText,
+    flush,
   };
 }

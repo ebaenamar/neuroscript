@@ -29,8 +29,7 @@ interface Props {
   onSpeak: (text: string) => void;
   onStopSpeak: () => void;
   onPauseResumeSpeak: () => void;
-  // Controls
-  onStart: () => void;
+  // Session controls
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -46,7 +45,6 @@ export default function TextOutput({
   onSpeak,
   onStopSpeak,
   onPauseResumeSpeak,
-  onStart,
   onPause,
   onResume,
   onStop,
@@ -54,7 +52,7 @@ export default function TextOutput({
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
-  const [wordDelayMs, setWordDelayMs] = useState(150); // ms per word
+  const [wordDelayMs, setWordDelayMs] = useState(150);
 
   const {
     revealedParagraphs,
@@ -63,13 +61,20 @@ export default function TextOutput({
     pendingParagraphs,
     pendingWords,
     allText,
-  } = useTypewriter(completedParagraphs, wordDelayMs);
+    flush,
+  } = useTypewriter(completedParagraphs, wordDelayMs, isPaused);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [revealedParagraphs, typingText]);
 
   const hasText = revealedParagraphs.length > 0 || typingText.length > 0;
+
+  const handleStop = () => {
+    flush();
+    onStopSpeak();
+    onStop();
+  };
 
   const speedLabel =
     wordDelayMs === 0
@@ -83,11 +88,14 @@ export default function TextOutput({
       : "Meditative";
 
   const statusText = () => {
+    if (isPaused && sessionId) {
+      return "Paused";
+    }
     if (isTyping && pendingParagraphs > 0) {
-      return `Typing... (${pendingWords} words + ${pendingParagraphs} paragraphs queued)`;
+      return `Typing... (${pendingWords} words + ${pendingParagraphs} queued)`;
     }
     if (isTyping) {
-      return `Typing... (${pendingWords} words remaining)`;
+      return `Typing... (${pendingWords} words)`;
     }
     if (isReceiving) {
       return "Receiving from LLM...";
@@ -107,8 +115,10 @@ export default function TextOutput({
         </h2>
         <div className="flex items-center gap-2">
           {statusText() && (
-            <span className="flex items-center gap-1.5 text-xs text-cyan-400">
-              {isTyping ? (
+            <span className={`flex items-center gap-1.5 text-xs ${isPaused && sessionId ? "text-amber-400" : "text-cyan-400"}`}>
+              {isPaused && sessionId ? (
+                <Pause className="h-3 w-3" />
+              ) : isTyping ? (
                 <PenLine className="h-3 w-3" />
               ) : (
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -122,12 +132,12 @@ export default function TextOutput({
       {/* Text area */}
       <ScrollArea className="flex-1 px-4 pb-2">
         <div className="prose prose-invert prose-sm max-w-none py-2 font-serif leading-relaxed">
-          {!hasText && !isReceiving && (
+          {!hasText && !isReceiving && !sessionId && (
             <p className="text-zinc-600 italic">
-              Configure a theme and press Start to begin generating...
+              Configure a theme and press Start Writing to begin...
             </p>
           )}
-          {!hasText && isReceiving && (
+          {!hasText && (isReceiving || (sessionId && !isPaused)) && (
             <p className="text-zinc-600 italic flex items-center gap-2">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Composing the opening...
@@ -141,7 +151,9 @@ export default function TextOutput({
           {typingText && (
             <p className="text-zinc-100 mb-4">
               {typingText}
-              <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
+              {!isPaused && (
+                <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
+              )}
             </p>
           )}
           <div ref={bottomRef} />
@@ -174,52 +186,45 @@ export default function TextOutput({
 
       {/* Controls */}
       <div className="border-t border-zinc-800 px-4 py-3 flex items-center justify-between gap-2">
+        {/* Session controls */}
         <div className="flex items-center gap-2">
-          {!sessionId ? (
-            <Button
-              size="sm"
-              onClick={onStart}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white"
-            >
-              <Play className="h-3.5 w-3.5 mr-1" />
-              Start
-            </Button>
-          ) : isPaused ? (
-            <Button
-              size="sm"
-              onClick={onResume}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white"
-            >
-              <Play className="h-3.5 w-3.5 mr-1" />
-              Resume
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onPause}
-              className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-            >
-              <Pause className="h-3.5 w-3.5 mr-1" />
-              Pause
-            </Button>
-          )}
-
           {sessionId && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onStop}
-              className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
-            >
-              <Square className="h-3.5 w-3.5 mr-1" />
-              Stop
-            </Button>
+            <>
+              {isPaused ? (
+                <Button
+                  size="sm"
+                  onClick={onResume}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                >
+                  <Play className="h-3.5 w-3.5 mr-1" />
+                  Resume
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onPause}
+                  className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                >
+                  <Pause className="h-3.5 w-3.5 mr-1" />
+                  Pause
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleStop}
+                className="border-red-800/50 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+              >
+                <Square className="h-3.5 w-3.5 mr-1" />
+                Stop
+              </Button>
+            </>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* TTS controls */}
+        {/* TTS + Save/Copy */}
+        <div className="flex items-center gap-1.5">
           {allText && (
             <>
               {isSpeaking ? (
