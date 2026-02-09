@@ -36,7 +36,7 @@ export type WSIncoming =
   | { type: "text_chunk"; chunk: string }
   | { type: "text_end"; full_text: string }
   | { type: "configured"; theme: string; mode: string }
-  | { type: "started"; sessionId: string }
+  | { type: "started"; sessionId: string; continued?: boolean }
   | { type: "paused" }
   | { type: "resumed" }
   | { type: "stopped"; savedTo?: string }
@@ -47,7 +47,7 @@ export type WSIncoming =
 
 export type WSOutgoing =
   | { type: "configure" } & Partial<SessionConfig>
-  | { type: "start" } & Partial<SessionConfig>
+  | { type: "start"; continueSession?: boolean } & Partial<SessionConfig>
   | { type: "pause" }
   | { type: "resume" }
   | { type: "stop" }

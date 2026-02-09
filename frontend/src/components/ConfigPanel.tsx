@@ -13,6 +13,7 @@ interface Props {
   onStartSession: (config: SessionConfig) => void;
   connected: boolean;
   sessionActive: boolean;
+  isStopped: boolean;
 }
 
 export default function ConfigPanel({
@@ -20,6 +21,7 @@ export default function ConfigPanel({
   onStartSession,
   connected,
   sessionActive,
+  isStopped,
 }: Props) {
   const [theme, setTheme] = useState("a nighttime walk through a quiet city");
   const [mode, setMode] = useState<SessionMode>("generator");
@@ -63,7 +65,7 @@ export default function ConfigPanel({
               : "border-zinc-600 text-zinc-500"
           }`}
         >
-          {sessionActive ? "SESSION ACTIVE" : "IDLE"}
+          {sessionActive ? "SESSION ACTIVE" : isStopped ? "STOPPED" : "IDLE"}
         </Badge>
       </div>
 
@@ -173,7 +175,12 @@ export default function ConfigPanel({
       </div>
 
       {/* Action buttons */}
-      {!sessionActive ? (
+      {isStopped ? (
+        <p className="text-[10px] text-zinc-500 text-center">
+          Use Continue Writing or New Session below.
+          You can edit config before continuing.
+        </p>
+      ) : !sessionActive ? (
         <Button
           onClick={handleStart}
           disabled={!connected || (mode === "generator" && !theme.trim()) || (mode === "editor" && !baseText.trim())}

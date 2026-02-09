@@ -16,6 +16,8 @@ import {
   Check,
   Loader2,
   PenLine,
+  RotateCcw,
+  FastForward,
 } from "lucide-react";
 import { useTypewriter } from "@/hooks/useTypewriter";
 
@@ -23,6 +25,7 @@ interface Props {
   completedParagraphs: string[];
   isReceiving: boolean;
   isPaused: boolean;
+  isStopped: boolean;
   // TTS
   isSpeaking: boolean;
   ttsPaused: boolean;
@@ -33,6 +36,8 @@ interface Props {
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
+  onContinueSession: () => void;
+  onNewSession: () => void;
   sessionId: string | null;
 }
 
@@ -40,6 +45,7 @@ export default function TextOutput({
   completedParagraphs,
   isReceiving,
   isPaused,
+  isStopped,
   isSpeaking,
   ttsPaused,
   onSpeak,
@@ -48,6 +54,8 @@ export default function TextOutput({
   onPause,
   onResume,
   onStop,
+  onContinueSession,
+  onNewSession,
   sessionId,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -61,7 +69,7 @@ export default function TextOutput({
     pendingParagraphs,
     pendingWords,
     allText,
-    flush,
+    truncate,
   } = useTypewriter(completedParagraphs, wordDelayMs, isPaused);
 
   useEffect(() => {
@@ -71,7 +79,7 @@ export default function TextOutput({
   const hasText = revealedParagraphs.length > 0 || typingText.length > 0;
 
   const handleStop = () => {
-    flush();
+    truncate();
     onStopSpeak();
     onStop();
   };
@@ -88,23 +96,22 @@ export default function TextOutput({
       : "Meditative";
 
   const statusText = () => {
-    if (isPaused && sessionId) {
-      return "Paused";
-    }
+    if (isStopped) return "Stopped";
+    if (isPaused && sessionId) return "Paused";
     if (isTyping && pendingParagraphs > 0) {
       return `Typing... (${pendingWords} words + ${pendingParagraphs} queued)`;
     }
-    if (isTyping) {
-      return `Typing... (${pendingWords} words)`;
-    }
-    if (isReceiving) {
-      return "Receiving from LLM...";
-    }
-    if (pendingParagraphs > 0) {
-      return `${pendingParagraphs} paragraphs queued`;
-    }
+    if (isTyping) return `Typing... (${pendingWords} words)`;
+    if (isReceiving) return "Receiving from LLM...";
+    if (pendingParagraphs > 0) return `${pendingParagraphs} paragraphs queued`;
     return null;
   };
+
+  const statusColor = isStopped
+    ? "text-zinc-500"
+    : isPaused && sessionId
+    ? "text-amber-400"
+    : "text-cyan-400";
 
   return (
     <Card className="bg-zinc-900/60 border-zinc-700/50 backdrop-blur-md flex flex-col h-full">
@@ -115,8 +122,10 @@ export default function TextOutput({
         </h2>
         <div className="flex items-center gap-2">
           {statusText() && (
-            <span className={`flex items-center gap-1.5 text-xs ${isPaused && sessionId ? "text-amber-400" : "text-cyan-400"}`}>
-              {isPaused && sessionId ? (
+            <span className={`flex items-center gap-1.5 text-xs ${statusColor}`}>
+              {isStopped ? (
+                <Square className="h-3 w-3" />
+              ) : isPaused && sessionId ? (
                 <Pause className="h-3 w-3" />
               ) : isTyping ? (
                 <PenLine className="h-3 w-3" />
@@ -132,7 +141,7 @@ export default function TextOutput({
       {/* Text area */}
       <ScrollArea className="flex-1 px-4 pb-2">
         <div className="prose prose-invert prose-sm max-w-none py-2 font-serif leading-relaxed">
-          {!hasText && !isReceiving && !sessionId && (
+          {!hasText && !isReceiving && !sessionId && !isStopped && (
             <p className="text-zinc-600 italic">
               Configure a theme and press Start Writing to begin...
             </p>
@@ -151,7 +160,7 @@ export default function TextOutput({
           {typingText && (
             <p className="text-zinc-100 mb-4">
               {typingText}
-              {!isPaused && (
+              {!isPaused && !isStopped && (
                 <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
               )}
             </p>
@@ -188,6 +197,30 @@ export default function TextOutput({
       <div className="border-t border-zinc-800 px-4 py-3 flex items-center justify-between gap-2">
         {/* Session controls */}
         <div className="flex items-center gap-2">
+          {/* Stopped state: Continue / New Session */}
+          {isStopped && !sessionId && (
+            <>
+              <Button
+                size="sm"
+                onClick={onContinueSession}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              >
+                <FastForward className="h-3.5 w-3.5 mr-1" />
+                Continue Writing
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onNewSession}
+                className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                New Session
+              </Button>
+            </>
+          )}
+
+          {/* Active session: Pause/Resume + Stop */}
           {sessionId && (
             <>
               {isPaused ? (

@@ -21,6 +21,7 @@ export interface NeuroSocketState {
   completedParagraphs: string[];
   isReceiving: boolean;
   isPaused: boolean;
+  isStopped: boolean;
   sessionId: string | null;
   error: string | null;
 }
@@ -39,6 +40,7 @@ export function useNeuroSocket() {
     completedParagraphs: [],
     isReceiving: false,
     isPaused: true,
+    isStopped: false,
     sessionId: null,
     error: null,
   });
@@ -114,7 +116,9 @@ export function useNeuroSocket() {
             ...s,
             sessionId: msg.sessionId,
             isPaused: false,
-            completedParagraphs: [],
+            isStopped: false,
+            // Only clear paragraphs on fresh start, keep them on continue
+            completedParagraphs: msg.continued ? s.completedParagraphs : [],
           }));
           break;
 
@@ -130,6 +134,7 @@ export function useNeuroSocket() {
           setState((s) => ({
             ...s,
             isPaused: true,
+            isStopped: s.completedParagraphs.length > 0,
             isReceiving: false,
             sessionId: null,
           }));
@@ -178,6 +183,15 @@ export function useNeuroSocket() {
     },
     [send]
   );
+  const continueSession = useCallback(
+    () => {
+      send({ type: "start", continueSession: true });
+    },
+    [send]
+  );
+  const newSession = useCallback(() => {
+    setState((s) => ({ ...s, completedParagraphs: [], isStopped: false }));
+  }, []);
   const pause = useCallback(() => send({ type: "pause" }), [send]);
   const resume = useCallback(() => send({ type: "resume" }), [send]);
   const stop = useCallback(() => send({ type: "stop" }), [send]);
@@ -196,6 +210,8 @@ export function useNeuroSocket() {
     configure,
     start,
     startWithConfig,
+    continueSession,
+    newSession,
     pause,
     resume,
     stop,

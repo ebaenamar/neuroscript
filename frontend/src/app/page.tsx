@@ -57,6 +57,7 @@ export default function Home() {
             onStartSession={neuro.startWithConfig}
             connected={neuro.connected}
             sessionActive={neuro.sessionId !== null}
+            isStopped={neuro.isStopped}
           />
         </div>
 
@@ -66,6 +67,7 @@ export default function Home() {
             completedParagraphs={neuro.completedParagraphs}
             isReceiving={neuro.isReceiving}
             isPaused={neuro.isPaused}
+            isStopped={neuro.isStopped}
             isSpeaking={tts.isSpeaking}
             ttsPaused={tts.isPaused}
             onSpeak={tts.speak}
@@ -74,6 +76,8 @@ export default function Home() {
             onPause={neuro.pause}
             onResume={neuro.resume}
             onStop={neuro.stop}
+            onContinueSession={neuro.continueSession}
+            onNewSession={neuro.newSession}
             sessionId={neuro.sessionId}
           />
         </div>

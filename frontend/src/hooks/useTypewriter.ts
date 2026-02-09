@@ -40,18 +40,19 @@ export function useTypewriter(
     }
   }, [clearTimer]);
 
-  // Flush: instantly reveal all remaining text (used on Stop)
-  const flush = useCallback(() => {
+  // Truncate: keep what's already shown, discard unrevealed queue.
+  // If mid-typing, the partial text is saved to revealed. Queued paragraphs are skipped.
+  const truncate = useCallback(() => {
     clearTimer();
-    const remaining = completedParagraphs.slice(revealedCount);
-    if (remaining.length > 0) {
-      setRevealedParagraphs((prev) => [...prev, ...remaining]);
-      setRevealedCount(completedParagraphs.length);
+    if (typingText) {
+      setRevealedParagraphs((prev) => [...prev, typingText]);
     }
+    // Mark all paragraphs as "consumed" so the typewriter won't replay them
+    setRevealedCount(completedParagraphs.length);
     setTypingText("");
     setWordIndex(0);
     setIsTyping(false);
-  }, [clearTimer, completedParagraphs, revealedCount]);
+  }, [clearTimer, completedParagraphs.length, typingText]);
 
   // Reset when completedParagraphs is cleared (new session)
   useEffect(() => {
@@ -154,6 +155,6 @@ export function useTypewriter(
     pendingParagraphs: Math.max(0, pendingParagraphs),
     pendingWords,
     allText,
-    flush,
+    truncate,
   };
 }

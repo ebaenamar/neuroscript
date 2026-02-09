@@ -187,12 +187,14 @@ async def websocket_endpoint(ws: WebSocket):
                     base_text = msg["baseText"]
                 if "sensitivity" in msg:
                     engine.sensitivity = msg["sensitivity"]
+                is_continue = msg.get("continueSession", False)
+                if not is_continue:
+                    engine.reset_context()
                 paused = False
                 session_active = True
                 session_id = session_mgr.start_session(theme, mode)
-                engine.reset_context()
-                await ws.send_json({"type": "started", "sessionId": session_id})
-                logger.info(f"Generation started: session={session_id}, theme='{theme}', mode={mode}")
+                await ws.send_json({"type": "started", "sessionId": session_id, "continued": is_continue})
+                logger.info(f"Generation {'continued' if is_continue else 'started'}: session={session_id}, theme='{theme}', mode={mode}")
 
             elif msg_type == "pause":
                 paused = True
