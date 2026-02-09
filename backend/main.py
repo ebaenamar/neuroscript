@@ -104,13 +104,16 @@ async def websocket_endpoint(ws: WebSocket):
         """Generate text paragraphs based on current EEG state."""
         nonlocal generating
         while not stop_event.is_set():
-            if paused or not theme:
+            # Generator needs a theme; Editor needs base_text (theme is optional)
+            has_input = base_text if mode == "editor" else theme
+            if paused or not has_input:
                 await asyncio.sleep(0.5)
                 continue
 
             generating = True
             try:
                 is_editor = mode == "editor"
+                logger.info(f"Generating paragraph (mode={mode}, theme='{theme[:40]}...', base_text={bool(base_text)})")
                 system_prompt, user_prompt, transformations = engine.build_system_prompt(
                     current_state, theme, base_text=base_text, is_editor=is_editor
                 )

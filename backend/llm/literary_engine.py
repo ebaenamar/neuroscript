@@ -69,8 +69,9 @@ class LiteraryEngine:
             )
 
         if is_editor and base_text:
+            tone_line = f"Tone/Context: {theme}\n\n" if theme.strip() else ""
             user_prompt = (
-                f"Theme/Scene: {theme}\n\n"
+                f"{tone_line}"
                 f"Base text to transform:\n\"{base_text}\"\n\n"
                 "Rewrite this text applying the style parameters above. "
                 "Keep the same meaning but reshape the form."
