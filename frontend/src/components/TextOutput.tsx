@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Play,
@@ -14,7 +15,9 @@ import {
   Copy,
   Check,
   Loader2,
+  PenLine,
 } from "lucide-react";
+import { useTypewriter } from "@/hooks/useTypewriter";
 
 interface Props {
   paragraphs: string[];
@@ -53,12 +56,30 @@ export default function TextOutput({
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const [wordDelayMs, setWordDelayMs] = useState(0); // 0 = instant
+
+  const { displayedText, isTyping, pendingWords } = useTypewriter(
+    streamingText,
+    wordDelayMs,
+    isGenerating
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [paragraphs, streamingText]);
+  }, [paragraphs, displayedText]);
 
   const allText = [...paragraphs, streamingText].filter(Boolean).join("\n\n");
+
+  const speedLabel =
+    wordDelayMs === 0
+      ? "Instant"
+      : wordDelayMs < 200
+      ? "Fast"
+      : wordDelayMs < 600
+      ? "Slow"
+      : wordDelayMs < 1500
+      ? "Pensive"
+      : "Meditative";
 
   return (
     <Card className="bg-zinc-900/60 border-zinc-700/50 backdrop-blur-md flex flex-col h-full">
@@ -67,12 +88,18 @@ export default function TextOutput({
         <h2 className="text-sm font-semibold tracking-wide text-zinc-200 uppercase">
           Generated Text
         </h2>
-        {isGenerating && (
-          <span className="flex items-center gap-1.5 text-xs text-cyan-400">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Writing...
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {(isGenerating || isTyping) && (
+            <span className="flex items-center gap-1.5 text-xs text-cyan-400">
+              {isTyping ? (
+                <PenLine className="h-3 w-3" />
+              ) : (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              )}
+              {isTyping ? `Typing... (${pendingWords} words queued)` : "Receiving..."}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Text area */}
@@ -88,15 +115,41 @@ export default function TextOutput({
               {p}
             </p>
           ))}
-          {streamingText && (
+          {displayedText && (
             <p className="text-zinc-100 mb-4">
-              {streamingText}
-              <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
+              {displayedText}
+              {(isGenerating || isTyping) && (
+                <span className="inline-block w-0.5 h-4 bg-cyan-400 animate-pulse ml-0.5 align-text-bottom" />
+              )}
             </p>
           )}
           <div ref={bottomRef} />
         </div>
       </ScrollArea>
+
+      {/* Writing Speed Slider */}
+      <div className="border-t border-zinc-800/50 px-4 pt-2.5 pb-1">
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="text-[10px] text-zinc-500 font-medium uppercase tracking-wide">
+            Writing Speed
+          </label>
+          <span className="text-[10px] font-mono text-zinc-500">
+            {wordDelayMs === 0 ? "Instant" : `${wordDelayMs}ms/word`} — {speedLabel}
+          </span>
+        </div>
+        <Slider
+          value={[wordDelayMs]}
+          min={0}
+          max={3000}
+          step={50}
+          onValueChange={([v]) => setWordDelayMs(v)}
+          className="w-full"
+        />
+        <div className="flex justify-between text-[9px] text-zinc-600 mt-0.5">
+          <span>Instant</span>
+          <span>Meditative</span>
+        </div>
+      </div>
 
       {/* Controls */}
       <div className="border-t border-zinc-800 px-4 py-3 flex items-center justify-between gap-2">
